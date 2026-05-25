@@ -194,20 +194,41 @@ def main():
 
     p_bundle = sub.add_parser("bundle", help="Bundle a package for offline install")
     p_bundle.add_argument("package", help="Package name")
-    p_bundle.add_argument("--platforms", help="Comma-separated platforms (default: all 6)")
+p_bundle.add_argument(
+    "--platforms",
+    help=(
+        "Comma-separated platform tags. "
+        f"Valid: {', '.join(DEFAULT_PLATFORMS)}. "
+        f"Default: all of them."
+    ),
+)
     p_bundle.add_argument("--snapshot", action="store_true", help="Snapshot current env (single-platform)")
     p_bundle.set_defaults(func=cmd_bundle)
 
     p_list = sub.add_parser("list", help="List all bundles")
     p_list.set_defaults(func=cmd_list)
-
+p_update.add_argument(
+    "--platforms",
+    help=(
+        "Comma-separated platform tags. "
+        f"Valid: {', '.join(DEFAULT_PLATFORMS)}. "
+        f"Default: all of them."
+    ),
+)
     p_info = sub.add_parser("info", help="Show bundle details")
     p_info.add_argument("package", help="Package name")
     p_info.set_defaults(func=cmd_info)
 
     p_update = sub.add_parser("update", help="Re-fetch a bundle")
     p_update.add_argument("package", help="Package name")
-    p_update.add_argument("--platforms", help="Comma-separated platforms")
+    p_update.add_argument(
+    "--platforms",
+    help=(
+        "Comma-separated platform tags. "
+        f"Valid: {', '.join(DEFAULT_PLATFORMS)}. "
+        f"Default: all of them."
+    ),
+)
     p_update.add_argument("--snapshot", action="store_true", help="Snapshot mode")
     p_update.set_defaults(func=cmd_update)
 
