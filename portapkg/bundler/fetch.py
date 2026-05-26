@@ -1,7 +1,37 @@
+import os
 import subprocess
 import sys
 
-from portapkg.installer.platform import DEFAULT_PLATFORMS, DEFAULT_PYTHON_VERSIONS
+from portapkg.installer.platform import (
+    DEFAULT_PLATFORMS,
+    DEFAULT_PYTHON_VERSIONS,
+    parse_wheel_filename,
+    platform_tag_matches,
+)
+
+
+
+def _wheel_exists(package, version, dest_dir, plat=None):
+    """Check if a compatible wheel for (package, version) already exists.
+
+    If plat is provided, also checks that the existing wheel's platform
+    tag is compatible with the requested platform.
+    """
+    if not os.path.isdir(dest_dir):
+        return False
+    normalized = package.lower().replace("_", "-")
+    prefix = f"{normalized}-{version}-"
+    for fname in os.listdir(dest_dir):
+        if not (fname.lower().startswith(prefix) and fname.endswith(".whl")):
+            continue
+        if plat is None:
+            return True
+        parsed = parse_wheel_filename(fname)
+        if parsed is None:
+            continue
+        if platform_tag_matches(parsed["platform_tag"], plat):
+            return True
+    return False
 
 
 def download_wheels(
@@ -23,6 +53,9 @@ def download_wheels(
 
     for plat in platforms:
         for pyver in python_versions:
+            if _wheel_exists(package, version, dest_dir, plat):
+                successes.append((plat, pyver, "binary"))
+                continue
             pyver_dotted = f"{pyver[0]}.{pyver[1:]}"
             cmd = [
                 sys.executable,
@@ -55,7 +88,6 @@ def download_wheels(
                         plat,
                         "--python-version",
                         pyver_dotted,
-                        "--no-deps",
                         spec,
                     ]
                     result2 = subprocess.run(

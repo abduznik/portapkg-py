@@ -3,6 +3,7 @@ import tempfile
 from unittest.mock import patch
 
 from portapkg.bundler.fetch import (
+    _wheel_exists,
     download_single_platform,
     download_wheels,
 )
@@ -225,3 +226,52 @@ class TestDownloadSinglePlatform:
         assert "testpkg==1.0" in call_args
         assert "--platform" not in call_args
         assert "--only-binary" not in call_args
+
+
+class TestWheelExists:
+    def test_no_dest_dir(self, tmp_path):
+        assert _wheel_exists("pkg", "1.0", str(tmp_path / "nonexistent")) is False
+
+    def test_empty_dir(self, tmp_path):
+        assert _wheel_exists("pkg", "1.0", str(tmp_path)) is False
+
+    def test_skips_non_wheel_files(self, tmp_path):
+        (tmp_path / "pkg-1.0.tar.gz").write_text("")
+        (tmp_path / "random.txt").write_text("")
+        assert _wheel_exists("pkg", "1.0", str(tmp_path)) is False
+
+    def test_matching_wheel_exists(self, tmp_path):
+        (tmp_path / "pkg-1.0-py3-none-any.whl").write_text("")
+        assert _wheel_exists("pkg", "1.0", str(tmp_path)) is True
+
+    def test_wrong_version_no_match(self, tmp_path):
+        (tmp_path / "pkg-2.0-py3-none-any.whl").write_text("")
+        assert _wheel_exists("pkg", "1.0", str(tmp_path)) is False
+
+    def test_name_case_insensitive(self, tmp_path):
+        (tmp_path / "MyPkg-1.0-py3-none-any.whl").write_text("")
+        assert _wheel_exists("mypkg", "1.0", str(tmp_path)) is True
+
+    def test_underscore_normalized_in_name(self, tmp_path):
+        (tmp_path / "my-pkg-1.0-py3-none-any.whl").write_text("")
+        assert _wheel_exists("my_pkg", "1.0", str(tmp_path)) is True
+
+    def test_platform_match(self, tmp_path):
+        (tmp_path / "pkg-1.0-cp312-cp312-win_amd64.whl").write_text("")
+        assert _wheel_exists("pkg", "1.0", str(tmp_path), plat="win_amd64") is True
+
+    def test_platform_mismatch(self, tmp_path):
+        (tmp_path / "pkg-1.0-cp312-cp312-win_amd64.whl").write_text("")
+        assert _wheel_exists("pkg", "1.0", str(tmp_path), plat="linux_x86_64") is False
+
+    def test_platform_mismatch_but_any_wheel_skips(self, tmp_path):
+        (tmp_path / "pkg-1.0-py3-none-any.whl").write_text("")
+        assert _wheel_exists("pkg", "1.0", str(tmp_path), plat="linux_x86_64") is True
+
+    def test_macos_matching_arch(self, tmp_path):
+        (tmp_path / "pkg-1.0-cp312-cp312-macosx_12_0_arm64.whl").write_text("")
+        assert _wheel_exists("pkg", "1.0", str(tmp_path), plat="macosx_13_0_arm64") is True
+
+    def test_macos_mismatched_arch(self, tmp_path):
+        (tmp_path / "pkg-1.0-cp312-cp312-macosx_12_0_arm64.whl").write_text("")
+        assert _wheel_exists("pkg", "1.0", str(tmp_path), plat="macosx_13_0_x86_64") is False

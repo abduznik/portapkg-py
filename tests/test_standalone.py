@@ -110,7 +110,7 @@ class TestCmdInstall:
             )
             with pytest.raises(SystemExit):
                 standalone.cmd_install(
-                    type("Args", (), {"package": "testpkg", "target": None})()
+                    type("Args", (), {"packages": ["testpkg"], "all": False, "target": None})()
                 )
         captured = capsys.readouterr()
         assert "pip is not available" in captured.err
@@ -125,7 +125,7 @@ class TestCmdInstall:
                 pytest.raises(SystemExit),
             ):
                 standalone.cmd_install(
-                    type("Args", (), {"package": "testpkg", "target": None})()
+                    type("Args", (), {"packages": ["testpkg"], "all": False, "target": None})()
                 )
         captured = capsys.readouterr()
         assert "not found" in captured.err
@@ -164,11 +164,102 @@ class TestCmdInstall:
                 patch.object(standalone, "BUNDLES_DIR", tmpdir),
             ):
                 standalone.cmd_install(
-                    type("Args", (), {"package": "testpkg", "target": None})()
+                    type("Args", (), {"packages": ["testpkg"], "all": False, "target": None})()
                 )
 
         captured = capsys.readouterr()
         assert "Successfully installed" in captured.out
+
+    def test_multiple_packages(self, standalone, capsys):
+        """Install multiple packages in one command."""
+        mock_success = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="pip 23.0", stderr=""
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for pkg in ["pkg_a", "pkg_b"]:
+                bundle_dir = os.path.join(tmpdir, pkg)
+                wheels_dir = os.path.join(bundle_dir, "wheels")
+                os.makedirs(wheels_dir)
+                with open(os.path.join(bundle_dir, "manifest.json"), "w") as f:
+                    json.dump({
+                        "name": pkg, "version": "1.0",
+                        "dependencies": [{"name": pkg, "version": "1.0"}],
+                    }, f)
+                with open(
+                    os.path.join(wheels_dir, f"{pkg}-1.0-py3-none-any.whl"), "w"
+                ) as f:
+                    f.write("")
+
+            def mock_run_side_effect(cmd, **kwargs):
+                if "--version" in cmd:
+                    return mock_success
+                return subprocess.CompletedProcess(
+                    args=[], returncode=0, stdout="Installed", stderr=""
+                )
+
+            with (
+                patch.object(subprocess, "run", side_effect=mock_run_side_effect),
+                patch.object(standalone, "BUNDLES_DIR", tmpdir),
+            ):
+                standalone.cmd_install(
+                    type("Args", (), {"packages": ["pkg_a", "pkg_b"], "all": False, "target": None})()
+                )
+
+        captured = capsys.readouterr()
+        assert "All packages installed successfully" in captured.out
+
+    def test_install_all(self, standalone, capsys):
+        """Install all bundles via --all flag."""
+        mock_success = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="pip 23.0", stderr=""
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for pkg in ["pkg_a", "pkg_b", "pkg_c"]:
+                bundle_dir = os.path.join(tmpdir, pkg)
+                wheels_dir = os.path.join(bundle_dir, "wheels")
+                os.makedirs(wheels_dir)
+                with open(os.path.join(bundle_dir, "manifest.json"), "w") as f:
+                    json.dump({
+                        "name": pkg, "version": "1.0",
+                        "dependencies": [{"name": pkg, "version": "1.0"}],
+                    }, f)
+                with open(
+                    os.path.join(wheels_dir, f"{pkg}-1.0-py3-none-any.whl"), "w"
+                ) as f:
+                    f.write("")
+
+            def mock_run_side_effect(cmd, **kwargs):
+                if "--version" in cmd:
+                    return mock_success
+                return subprocess.CompletedProcess(
+                    args=[], returncode=0, stdout="Installed", stderr=""
+                )
+
+            with (
+                patch.object(subprocess, "run", side_effect=mock_run_side_effect),
+                patch.object(standalone, "BUNDLES_DIR", tmpdir),
+            ):
+                standalone.cmd_install(
+                    type("Args", (), {"packages": [], "all": True, "target": None})()
+                )
+
+        captured = capsys.readouterr()
+        assert "All packages installed successfully" in captured.out
+
+    def test_install_all_empty(self, standalone, capsys):
+        """--all with no bundles should error."""
+        mock_success = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="pip 23.0", stderr=""
+        )
+        with patch.object(subprocess, "run", return_value=mock_success):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                with patch.object(standalone, "BUNDLES_DIR", tmpdir):
+                    with pytest.raises(SystemExit):
+                        standalone.cmd_install(
+                            type("Args", (), {"packages": [], "all": True, "target": None})()
+                        )
+        captured = capsys.readouterr()
+        assert "specify package(s)" in captured.err
 
 
 class TestCmdList:

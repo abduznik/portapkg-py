@@ -9,25 +9,19 @@ def _parse_package_version(filename):
     if filename.endswith(".whl"):
         stem = filename[:-4]
         parts = stem.split("-")
-        if len(parts) < 4:
+        if len(parts) < 5:
             return None, None
-        if "." in parts[-4]:
-            name = "-".join(parts[:-4])
-            version = parts[-4]
-        else:
-            name = "-".join(parts[:-5])
-            version = parts[-5]
-        return name, version
+        name = "-".join(parts[:-4])
+        version = parts[-4]
+        return name.lower().replace("_", "-"), version
     elif filename.endswith((".tar.gz", ".zip", ".tar.bz2")):
         for suffix in (".tar.gz", ".tar.bz2", ".zip"):
             if filename.endswith(suffix):
                 stem = filename[: -len(suffix)]
                 break
-        parts = stem.split("-")
-        if len(parts) >= 2 and re.match(r"^\d", parts[-1]):
-            return "-".join(parts[:-1]), parts[-1]
-        if len(parts) >= 2:
-            return parts[0], parts[1]
+        parts = stem.rsplit("-", 1)
+        if len(parts) == 2 and re.match(r"^\d", parts[1]):
+            return parts[0].lower().replace("_", "-"), parts[1]
     return None, None
 
 

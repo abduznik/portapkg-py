@@ -98,7 +98,9 @@ def platform_tag_matches(wheel_plat, current_plat):
         if a_arch == b_arch:
             return True
     if a.startswith("macosx") and b.startswith("macosx"):
-        return True
+        a_arch = a.split("_")[-1]
+        b_arch = b.split("_")[-1]
+        return a_arch == b_arch
     if a.startswith("win") and b.startswith("win"):
         a_arch = a.split("_")[-1] if "_" in a else a
         b_arch = b.split("_")[-1] if "_" in b else b

@@ -55,6 +55,7 @@ class TestCmdUpdate:
         ):
             args = argparse.Namespace(
                 package="testpkg",
+                packages=None,
                 platforms=None,
                 snapshot=False,
             )
@@ -68,6 +69,7 @@ class TestCmdUpdate:
         ):
             args = argparse.Namespace(
                 package="testpkg",
+                packages=None,
                 platforms=None,
                 snapshot=True,
             )

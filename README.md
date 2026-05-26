@@ -162,6 +162,22 @@ Python versions: 3.9, 3.10, 3.11, 3.12, 3.13
 - **Missing pip**: detected before any install attempt
 - **Missing bundle**: tells you which directory to copy
 
+## Configuration
+
+### `PORTAPKG_BUNDLES_DIR`
+
+By default, bundles are stored in `./bundles/` relative to the current working
+directory. You can override this with the `PORTAPKG_BUNDLES_DIR` environment
+variable:
+
+```bash
+export PORTAPKG_BUNDLES_DIR=/path/to/bundles
+portapkg bundle instrumation   # stores in /path/to/bundles/instrumation/
+```
+
+Both the CLI (`portapkg`) and the standalone script (`portapkg.py`) respect
+this environment variable.
+
 ## Requirements
 
 - **Online machine**: Python 3.9+, pip (any version)

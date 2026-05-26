@@ -213,6 +213,7 @@ def _find_standalone():
 
 def cmd_export(args):
     """Export bundle(s) + portapkg.py into a portable folder."""
+    # Determine which packages to export
     if args.packages:
         packages = [p.strip() for p in args.packages.split(",") if p.strip()]
     elif args.package:
@@ -221,8 +222,10 @@ def cmd_export(args):
         print("ERROR: specify a package or --packages to export.", file=sys.stderr)
         return 1
 
+    # Determine the export name
     export_name = args.name or (args.package if args.package else "bundle")
 
+    # Validate all bundles exist
     for pkg in packages:
         bundle_src = _get_bundle_dir(pkg)
         if not os.path.isdir(bundle_src):
@@ -248,12 +251,15 @@ def cmd_export(args):
         print(f"ERROR: {output_dir} already exists.", file=sys.stderr)
         return 1
 
+    # Build structure: {output_dir}/portapkg.py + bundles/{pkg1, pkg2, ...}/
     bundles_out = os.path.join(output_dir, "bundles")
     os.makedirs(bundles_out, exist_ok=True)
 
+    # Copy portapkg.py
     shutil.copy2(standalone, os.path.join(output_dir, "portapkg.py"))
     os.chmod(os.path.join(output_dir, "portapkg.py"), 0o755)
 
+    # Copy each bundle
     for pkg in packages:
         bundle_src = _get_bundle_dir(pkg)
         pkg_out = os.path.join(bundles_out, pkg)
