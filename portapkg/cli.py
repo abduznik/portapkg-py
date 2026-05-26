@@ -1,5 +1,10 @@
 import argparse
+import datetime
 import os
+import random
+import shutil
+import string
+import sys
 
 from portapkg.bundler.fetch import download_wheels, download_single_platform
 from portapkg.bundler.manifest import read_manifest, write_manifest, build_manifest
@@ -12,8 +17,9 @@ from portapkg.installer.platform import (
 )
 
 
-BUNDLES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bundles")
-BUNDLES_DIR = os.path.abspath(BUNDLES_DIR)
+BUNDLES_DIR = os.path.abspath(
+    os.environ.get("PORTAPKG_BUNDLES_DIR", os.path.join(os.getcwd(), "bundles"))
+)
 
 
 def _ensure_bundles_dir():
@@ -31,13 +37,30 @@ def _print_wheel_summary(wheels_dir):
     print(f"  Total wheel files: {len(whls)}")
 
 
+def _resolve_packages(args):
+    """Resolve package list from --packages flag or positional package arg."""
+    if args.packages:
+        return [p.strip() for p in args.packages.split(",") if p.strip()]
+    elif args.package:
+        return [args.package]
+    return []
+
+
 def cmd_bundle(args):
     _ensure_bundles_dir()
-    if args.snapshot:
-        _bundle_snapshot(args.package)
-    else:
-        platforms = args.platforms.split(",") if args.platforms else DEFAULT_PLATFORMS
-        _bundle_multi(args.package, platforms, DEFAULT_PYTHON_VERSIONS)
+    packages = _resolve_packages(args)
+    if not packages:
+        print("ERROR: specify a package or --packages to bundle.", file=sys.stderr)
+        return 1
+    for pkg in packages:
+        print(f"\n{'='*50}")
+        print(f"Bundling: {pkg}")
+        print(f"{'='*50}")
+        if args.snapshot:
+            _bundle_snapshot(pkg)
+        else:
+            platforms = args.platforms.split(",") if args.platforms else DEFAULT_PLATFORMS
+            _bundle_multi(pkg, platforms, DEFAULT_PYTHON_VERSIONS)
 
 
 def _bundle_multi(package, platforms, python_versions):
@@ -176,13 +199,101 @@ def cmd_info(args):
         print(f"  {wf}")
 
 
+def _find_standalone():
+    """Locate portapkg.py for export."""
+    locations = [
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), "portapkg.py"),
+        os.path.join(os.getcwd(), "portapkg.py"),
+    ]
+    for loc in locations:
+        if os.path.isfile(loc):
+            return os.path.abspath(loc)
+    return None
+
+
+def cmd_export(args):
+    """Export bundle(s) + portapkg.py into a portable folder."""
+    if args.packages:
+        packages = [p.strip() for p in args.packages.split(",") if p.strip()]
+    elif args.package:
+        packages = [args.package]
+    else:
+        print("ERROR: specify a package or --packages to export.", file=sys.stderr)
+        return 1
+
+    export_name = args.name or (args.package if args.package else "bundle")
+
+    for pkg in packages:
+        bundle_src = _get_bundle_dir(pkg)
+        if not os.path.isdir(bundle_src):
+            print(f"ERROR: Bundle for '{pkg}' not found in {BUNDLES_DIR}.\n"
+                  f"Bundle it first: portapkg bundle {pkg}", file=sys.stderr)
+            return 1
+
+    standalone = _find_standalone()
+    if standalone is None:
+        print("ERROR: Could not find portapkg.py. "
+              "Run this from the source repo or place portapkg.py in the current directory.",
+              file=sys.stderr)
+        return 1
+
+    today = datetime.date.today().isoformat()
+    rand_id = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    folder_name = f"{export_name}_{rand_id}_{today}"
+
+    output_parent = os.path.abspath(args.output) if args.output else os.getcwd()
+    output_dir = os.path.join(output_parent, folder_name)
+
+    if os.path.exists(output_dir):
+        print(f"ERROR: {output_dir} already exists.", file=sys.stderr)
+        return 1
+
+    bundles_out = os.path.join(output_dir, "bundles")
+    os.makedirs(bundles_out, exist_ok=True)
+
+    shutil.copy2(standalone, os.path.join(output_dir, "portapkg.py"))
+    os.chmod(os.path.join(output_dir, "portapkg.py"), 0o755)
+
+    for pkg in packages:
+        bundle_src = _get_bundle_dir(pkg)
+        pkg_out = os.path.join(bundles_out, pkg)
+        shutil.copytree(bundle_src, pkg_out)
+
+    print(f"Exported to: {output_dir}")
+    print(f"  Size: {_dir_size(output_dir):.1f} MB")
+    print("  Contents:")
+    print(f"    {output_dir}/portapkg.py")
+    print(f"    {output_dir}/bundles/")
+    for pkg in packages:
+        print(f"      {pkg}/")
+    return 0
+
+
+def _dir_size(path):
+    total = 0
+    for dirpath, _, filenames in os.walk(path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            if os.path.isfile(fp):
+                total += os.path.getsize(fp)
+    return total / (1024 * 1024)
+
+
 def cmd_update(args):
     _ensure_bundles_dir()
-    if args.snapshot:
-        _bundle_snapshot(args.package)
-    else:
-        platforms = args.platforms.split(",") if args.platforms else DEFAULT_PLATFORMS
-        _bundle_multi(args.package, platforms, DEFAULT_PYTHON_VERSIONS)
+    packages = _resolve_packages(args)
+    if not packages:
+        print("ERROR: specify a package or --packages to update.", file=sys.stderr)
+        return 1
+    for pkg in packages:
+        print(f"\n{'='*50}")
+        print(f"Updating: {pkg}")
+        print(f"{'='*50}")
+        if args.snapshot:
+            _bundle_snapshot(pkg)
+        else:
+            platforms = args.platforms.split(",") if args.platforms else DEFAULT_PLATFORMS
+            _bundle_multi(pkg, platforms, DEFAULT_PYTHON_VERSIONS)
 
 
 def main():
@@ -192,48 +303,52 @@ def main():
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_bundle = sub.add_parser("bundle", help="Bundle a package for offline install")
-    p_bundle.add_argument("package", help="Package name")
-p_bundle.add_argument(
-    "--platforms",
-    help=(
-        "Comma-separated platform tags. "
-        f"Valid: {', '.join(DEFAULT_PLATFORMS)}. "
-        f"Default: all of them."
-    ),
-)
+    p_bundle = sub.add_parser("bundle", help="Bundle a package (or multiple) for offline install")
+    p_bundle.add_argument("package", nargs="?", help="Package name (single-package shortcut)")
+    p_bundle.add_argument("--packages", help="Comma-separated list of packages to bundle")
+    p_bundle.add_argument(
+        "--platforms",
+        help=(
+            "Comma-separated platform tags. "
+            f"Valid: {', '.join(DEFAULT_PLATFORMS)}. "
+            "Default: all of them."
+        ),
+    )
     p_bundle.add_argument("--snapshot", action="store_true", help="Snapshot current env (single-platform)")
     p_bundle.set_defaults(func=cmd_bundle)
 
+    p_export = sub.add_parser("export", help="Export bundle(s) + portapkg.py into a portable folder")
+    p_export.add_argument("package", nargs="?", help="Package name (single-package shortcut)")
+    p_export.add_argument("--name", help="Custom export folder name (default: package name or 'bundle')")
+    p_export.add_argument("--packages", help="Comma-separated list of packages to include")
+    p_export.add_argument("--output", "-o", help="Output directory (default: current directory)")
+    p_export.set_defaults(func=cmd_export)
+
     p_list = sub.add_parser("list", help="List all bundles")
     p_list.set_defaults(func=cmd_list)
-p_update.add_argument(
-    "--platforms",
-    help=(
-        "Comma-separated platform tags. "
-        f"Valid: {', '.join(DEFAULT_PLATFORMS)}. "
-        f"Default: all of them."
-    ),
-)
+
     p_info = sub.add_parser("info", help="Show bundle details")
     p_info.add_argument("package", help="Package name")
     p_info.set_defaults(func=cmd_info)
 
-    p_update = sub.add_parser("update", help="Re-fetch a bundle")
-    p_update.add_argument("package", help="Package name")
+    p_update = sub.add_parser("update", help="Re-fetch a bundle (or multiple)")
+    p_update.add_argument("package", nargs="?", help="Package name (single-package shortcut)")
+    p_update.add_argument("--packages", help="Comma-separated list of packages to update")
     p_update.add_argument(
-    "--platforms",
-    help=(
-        "Comma-separated platform tags. "
-        f"Valid: {', '.join(DEFAULT_PLATFORMS)}. "
-        f"Default: all of them."
-    ),
-)
+        "--platforms",
+        help=(
+            "Comma-separated platform tags. "
+            f"Valid: {', '.join(DEFAULT_PLATFORMS)}. "
+            "Default: all of them."
+        ),
+    )
     p_update.add_argument("--snapshot", action="store_true", help="Snapshot mode")
     p_update.set_defaults(func=cmd_update)
 
     args = parser.parse_args()
-    args.func(args)
+    ret = args.func(args)
+    if isinstance(ret, int) and ret != 0:
+        sys.exit(ret)
 
 
 if __name__ == "__main__":
