@@ -19,7 +19,7 @@ import string
 import subprocess
 import sys
 
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 
 
 BUNDLES_DIR = os.path.abspath(
