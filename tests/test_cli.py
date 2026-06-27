@@ -11,7 +11,7 @@ class TestCmdList:
         with patch("portapkg.cli.BUNDLES_DIR", "/nonexistent/path"):
             cmd_list(None)
         captured = capsys.readouterr()
-        assert "No bundles" in captured.out or not captured.out
+        assert "No bundles" in captured.out, f"Expected 'No bundles' in stdout, got: {captured.out}"
 
     def test_list_no_manifests(self, capsys, tmp_path):
         bundle_dir = tmp_path / "testpkg"

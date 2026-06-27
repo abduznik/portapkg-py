@@ -5,6 +5,8 @@ import sys
 import tempfile
 import zipfile
 
+from portapkg.installer.platform import _normalize_pkg
+
 
 def _parse_package_version(filename):
     if filename.endswith(".whl"):
@@ -14,7 +16,7 @@ def _parse_package_version(filename):
             return None, None
         name = "-".join(parts[:-4])
         version = parts[-4]
-        return name.lower().replace("_", "-"), version
+        return _normalize_pkg(name), version
     elif filename.endswith((".tar.gz", ".zip", ".tar.bz2")):
         for suffix in (".tar.gz", ".tar.bz2", ".zip"):
             if filename.endswith(suffix):
@@ -22,7 +24,7 @@ def _parse_package_version(filename):
                 break
         parts = stem.rsplit("-", 1)
         if len(parts) == 2 and re.match(r"^\d", parts[1]):
-            return parts[0].lower().replace("_", "-"), parts[1]
+            return _normalize_pkg(parts[0]), parts[1]
     return None, None
 
 
@@ -64,7 +66,7 @@ def _conditional_matches_platform(condition, env):
 
     try:
         return Marker(condition.strip()).evaluate(env)
-    except Exception:
+    except (ValueError, KeyError, TypeError):
         return False
 
 
@@ -92,10 +94,10 @@ def _scan_conditional_deps(tmpdir, platforms):
                             if _conditional_matches_platform(raw_cond, env):
                                 body = line[len("Requires-Dist:"):].split(";")[0].strip()
                                 pkg_name = re.split(r"[<>=!~\[]", body)[0].strip()
-                                found.add(pkg_name.lower().replace("_", "-"))
+                                found.add(_normalize_pkg(pkg_name))
                                 break
                     break
-        except Exception:
+        except (zipfile.BadZipFile, KeyError, UnicodeDecodeError, OSError):
             continue
     return found
 
@@ -123,7 +125,7 @@ def resolve_dependencies(package, platforms=None):
         for fname in os.listdir(tmpdir):
             pkg_name, version = _parse_package_version(fname)
             if pkg_name and version:
-                pkg_name = pkg_name.lower().replace("_", "-")
+                pkg_name = _normalize_pkg(pkg_name)
                 if pkg_name not in all_deps:
                     all_deps[pkg_name] = version
 
@@ -167,7 +169,7 @@ def _resolve_conditional_tree(package, all_deps, tmpdir, platforms):
             if r.returncode == 0:
                 for fname in os.listdir(tmpdir):
                     n, v = _parse_package_version(fname)
-                    if n and n.lower().replace("_", "-") == name:
+                    if n and _normalize_pkg(n) == name:
                         all_deps[name] = v
                         break
 
@@ -188,5 +190,5 @@ def freeze_snapshot():
             continue
         if "==" in line:
             name, version = line.split("==", 1)
-            packages[name.lower().replace("_", "-")] = version
+            packages[_normalize_pkg(name)] = version
     return packages

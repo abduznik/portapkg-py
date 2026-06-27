@@ -1,11 +1,11 @@
 import os
-import re
 import subprocess
 import sys
 
 from portapkg.installer.platform import (
     DEFAULT_PLATFORMS,
     DEFAULT_PYTHON_VERSIONS,
+    _normalize_pkg,
     parse_wheel_filename,
     platform_tag_matches,
     python_tag_matches,
@@ -21,7 +21,7 @@ def _wheel_exists(package, version, dest_dir, plat=None, pyver=None):
     """
     if not os.path.isdir(dest_dir):
         return False
-    normalized = package.lower().replace("_", "-")
+    normalized = _normalize_pkg(package)
     prefix = f"{normalized}-{version}-"
     for fname in os.listdir(dest_dir):
         if not (fname.lower().startswith(prefix) and fname.endswith(".whl")):
@@ -60,22 +60,20 @@ def _pip_download(spec, dest_dir, plat=None, pyver_dotted=None, only_binary=None
 
 
 def _try_newer_version(package, cur_version, dest_dir, plat, pyver_dotted):
-    """Try to find a newer version of package with binary wheels for the target."""
+    """Try to find a newer version of package with binary wheels for the target.
+
+    Uses the PyPI JSON API (works with all pip versions).
+    """
     try:
-        r = subprocess.run(
-            [sys.executable, "-m", "pip", "index", "versions", package],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if r.returncode != 0:
-            return None
+        import urllib.request
+        import json as _json
 
-        m = re.search(r"Available versions: (.+)", r.stdout)
-        if not m:
-            return None
+        url = f"https://pypi.org/pypi/{package}/json"
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = _json.loads(resp.read().decode())
 
-        versions = [v.strip() for v in m.group(1).split(",")]
+        versions = sorted(data.get("releases", {}).keys(), reverse=True)
         try:
             cur_idx = versions.index(cur_version)
         except ValueError:
@@ -94,7 +92,7 @@ def _try_newer_version(package, cur_version, dest_dir, plat, pyver_dotted):
             )
             if result.returncode == 0:
                 return ver
-    except Exception:
+    except (subprocess.SubprocessError, OSError, ValueError):
         pass
     return None
 

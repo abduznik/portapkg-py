@@ -7,3 +7,4 @@ build/
 .pytest_cache/
 bundles/
 testing_grounds/
+.DS_Store

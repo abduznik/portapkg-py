@@ -14,6 +14,8 @@ from portapkg import __version__
 from portapkg.installer.platform import (
     DEFAULT_PLATFORMS,
     DEFAULT_PYTHON_VERSIONS,
+    WHEELS_SUBDIR,
+    _normalize_pkg,
     detect_current_platform,
     detect_current_python,
 )
@@ -78,13 +80,13 @@ def _bundle_multi(package, platforms, python_versions):
     deps = resolve_dependencies(package, platforms=platforms)
     print(f"Found {len(deps)} package(s): {', '.join(deps.keys())}")
 
-    pkg_key = package.lower().replace("_", "-")
+    pkg_key = _normalize_pkg(package)
     pkg_version = deps.get(pkg_key)
     if not pkg_version:
         raise RuntimeError(f"Could not determine version for {package}")
 
     bundle_dir = _get_bundle_dir(package)
-    wheels_dir = os.path.join(bundle_dir, "wheels")
+    wheels_dir = os.path.join(bundle_dir, WHEELS_SUBDIR)
     os.makedirs(wheels_dir, exist_ok=True)
 
     all_failures = {}
@@ -128,7 +130,7 @@ def _bundle_snapshot(package):
     print(f"Resolved dependency tree for {package}: {len(deps)} package(s)")
 
     bundle_dir = _get_bundle_dir(package)
-    wheels_dir = os.path.join(bundle_dir, "wheels")
+    wheels_dir = os.path.join(bundle_dir, WHEELS_SUBDIR)
     os.makedirs(wheels_dir, exist_ok=True)
 
     dep_entries = []
@@ -149,7 +151,7 @@ def _bundle_snapshot(package):
             }
         )
 
-    pkg_key = package.lower().replace("_", "-")
+    pkg_key = _normalize_pkg(package)
     pkg_version = frozen.get(pkg_key) or deps.get(pkg_key)
 
     source_plat = detect_current_platform()
@@ -180,7 +182,7 @@ def cmd_list(args):
     for name in bundles:
         manifest = read_manifest(os.path.join(BUNDLES_DIR, name))
         if manifest:
-            whl_dir = os.path.join(BUNDLES_DIR, name, "wheels")
+            whl_dir = os.path.join(BUNDLES_DIR, name, WHEELS_SUBDIR)
             wc = (
                 len([f for f in os.listdir(whl_dir) if f.endswith(".whl")])
                 if os.path.isdir(whl_dir)
@@ -205,7 +207,7 @@ def cmd_info(args):
         print(f"No manifest in {bundle_dir}")
         return
 
-    whl_dir = os.path.join(bundle_dir, "wheels")
+    whl_dir = os.path.join(bundle_dir, WHEELS_SUBDIR)
     wheel_files = (
         sorted(f for f in os.listdir(whl_dir) if f.endswith(".whl"))
         if os.path.isdir(whl_dir)

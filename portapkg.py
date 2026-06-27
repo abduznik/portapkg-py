@@ -127,7 +127,7 @@ def _resolve_install_packages(args):
             if os.path.isdir(os.path.join(BUNDLES_DIR, d))
         )
     elif args.packages:
-        return args.packages
+        return [p for p in args.packages if p and p.strip()]
     return []
 
 

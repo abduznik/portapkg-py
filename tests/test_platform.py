@@ -4,6 +4,7 @@ from unittest.mock import patch
 from portapkg.installer.platform import (
     DEFAULT_PLATFORMS,
     DEFAULT_PYTHON_VERSIONS,
+    WHEELS_SUBDIR,
     detect_current_platform,
     detect_current_python,
     parse_wheel_filename,
@@ -134,6 +135,24 @@ class TestPythonTagMatches:
         ):
             assert python_tag_matches("cp39", "310") is False
 
+    def test_empty_tag(self):
+        assert python_tag_matches("", "312") is True
+
+    def test_bare_cp_tag(self):
+        assert python_tag_matches("cp", "312") is True
+
+    def test_bare_py_tag(self):
+        assert python_tag_matches("py", "312") is True
+
+    def test_none_tag(self):
+        assert python_tag_matches("none", "312") is False
+
+    def test_cp3_major_only(self):
+        assert python_tag_matches("cp3", "312") is True
+
+    def test_py3_major_only(self):
+        assert python_tag_matches("py3", "39") is True
+
 
 class TestPlatformTagMatches:
     def test_any_matches_everything(self):
@@ -197,3 +216,6 @@ class TestConstants:
         assert "manylinux2014_aarch64" in DEFAULT_PLATFORMS
         assert "macosx_13_0_arm64" in DEFAULT_PLATFORMS
         assert "macosx_13_0_x86_64" in DEFAULT_PLATFORMS
+
+    def test_wheels_subdir(self):
+        assert WHEELS_SUBDIR == "wheels"

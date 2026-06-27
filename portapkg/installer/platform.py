@@ -13,6 +13,13 @@ DEFAULT_PLATFORMS = [
 
 DEFAULT_PYTHON_VERSIONS = ["39", "310", "311", "312", "313"]
 
+WHEELS_SUBDIR = "wheels"
+
+
+def _normalize_pkg(name: str) -> str:
+    """Normalize a package name per PEP 503."""
+    return name.lower().replace("_", "-")
+
 
 def detect_current_platform():
     system = sys.platform
@@ -69,17 +76,26 @@ def python_tag_matches(python_tag, current_pyver):
         tag = tag.strip()
         if tag == "*":
             return True
+        if tag == "none":
+            continue
         ver_part = tag[2:] if tag.startswith("cp") or tag.startswith("py") else tag
         if not ver_part:
             return True
-        major = int(current_pyver[0])
-        minor = int(current_pyver[1:])
-        if int(ver_part[0]) != major:
+        try:
+            major = int(current_pyver[0])
+            minor = int(current_pyver[1:])
+            tag_major = int(ver_part[0])
+        except (ValueError, IndexError):
+            continue
+        if tag_major != major:
             continue
         if len(ver_part) < 2:
             return True
-        if int(ver_part[1:]) == minor:
-            return True
+        try:
+            if int(ver_part[1:]) == minor:
+                return True
+        except ValueError:
+            continue
     return False
 
 
