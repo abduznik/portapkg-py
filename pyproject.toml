@@ -20,7 +20,7 @@ portapkg = "portapkg.cli:main"
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
-    "ruff>=0.3.0",
+    "ruff==0.16.7",
 ]
 
 [tool.setuptools.packages.find]

@@ -1,5 +1,5 @@
-import os
 import json
+import os
 import subprocess
 import tempfile
 from unittest.mock import patch

@@ -1,3 +1,3 @@
 __version__ = "0.3.3"
 
-__all__ = ["cli", "bundler", "installer", "__version__"]
+__all__ = ["__version__", "bundler", "cli", "installer"]

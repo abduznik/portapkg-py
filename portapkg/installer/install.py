@@ -4,11 +4,11 @@ import sys
 
 from portapkg.bundler.manifest import read_manifest
 from portapkg.installer.platform import (
-    parse_wheel_filename,
-    python_tag_matches,
-    platform_tag_matches,
     detect_current_platform,
     detect_current_python,
+    parse_wheel_filename,
+    platform_tag_matches,
+    python_tag_matches,
 )
 
 
@@ -69,7 +69,7 @@ def install_package(bundle_dir, package, target=None):
     if target:
         cmd.extend(["--target", target])
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         raise RuntimeError(f"Installation failed:\n{result.stdout}\n{result.stderr}")
     return result.stdout
@@ -80,5 +80,6 @@ def check_pip_available():
         [sys.executable, "-m", "pip", "--version"],
         capture_output=True,
         text=True,
+        check=False,
     )
     return result.returncode == 0

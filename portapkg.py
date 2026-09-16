@@ -69,7 +69,7 @@ def _py_tag_matches(tag, cur_ver):
         t = t.strip()
         if t == "*":
             return True
-        v = t[2:] if t.startswith("cp") or t.startswith("py") else t
+        v = t[2:] if t.startswith(("cp", "py")) else t
         if not v:
             return True
         major = int(cur_ver[0])
@@ -90,9 +90,7 @@ def _plat_matches(wheel_plat, cur_plat):
     b = cur_plat.replace("-", "_").replace(".", "_").lower()
     if a == b:
         return True
-    if (a.startswith("linux") or a.startswith("manylinux")) and (
-        b.startswith("linux") or b.startswith("manylinux")
-    ):
+    if a.startswith(("linux", "manylinux")) and b.startswith(("linux", "manylinux")):
         a_arch = a.split("_")[-1]
         b_arch = b.split("_")[-1]
         if a_arch == b_arch:
@@ -111,7 +109,10 @@ def _plat_matches(wheel_plat, cur_plat):
 
 def _check_pip():
     r = subprocess.run(
-        [sys.executable, "-m", "pip", "--version"], capture_output=True, text=True
+        [sys.executable, "-m", "pip", "--version"],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     return r.returncode == 0
 
@@ -211,7 +212,7 @@ def _install_single(package, target):
     if target:
         cmd.extend(["--target", target])
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         print(
             f"ERROR: Installation failed:\n{result.stdout}\n{result.stderr}",
@@ -276,7 +277,7 @@ def cmd_export(args):
             )
             return 1
 
-    today = datetime.date.today().isoformat()
+    today = datetime.datetime.now(tz=datetime.timezone.utc).date().isoformat()
     rand_id = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
     folder_name = f"{export_name}_{rand_id}_{today}"
 

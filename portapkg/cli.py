@@ -8,10 +8,10 @@ import shutil
 import string
 import sys
 
-from portapkg.bundler.fetch import download_wheels, download_single_platform
-from portapkg.bundler.manifest import read_manifest, write_manifest, build_manifest
-from portapkg.bundler.resolver import resolve_dependencies, freeze_snapshot
 from portapkg import __version__
+from portapkg.bundler.fetch import download_single_platform, download_wheels
+from portapkg.bundler.manifest import build_manifest, read_manifest, write_manifest
+from portapkg.bundler.resolver import freeze_snapshot, resolve_dependencies
 from portapkg.installer.platform import (
     DEFAULT_PLATFORMS,
     DEFAULT_PYTHON_VERSIONS,
@@ -330,7 +330,7 @@ def cmd_export(args):
         )
         return 1
 
-    today = datetime.date.today().isoformat()
+    today = datetime.datetime.now(tz=datetime.timezone.utc).date().isoformat()
     rand_id = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
     folder_name = f"{export_name}_{rand_id}_{today}"
 

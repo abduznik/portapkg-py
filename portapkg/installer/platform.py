@@ -1,7 +1,6 @@
 import platform
 import sys
 
-
 DEFAULT_PLATFORMS = [
     "win_amd64",
     "win32",
@@ -78,7 +77,7 @@ def python_tag_matches(python_tag, current_pyver):
             return True
         if tag == "none":
             continue
-        ver_part = tag[2:] if tag.startswith("cp") or tag.startswith("py") else tag
+        ver_part = tag[2:] if tag.startswith(("cp", "py")) else tag
         if not ver_part:
             return True
         try:
@@ -106,9 +105,7 @@ def platform_tag_matches(wheel_plat, current_plat):
     b = current_plat.replace("-", "_").replace(".", "_").lower()
     if a == b:
         return True
-    if (a.startswith("linux") or a.startswith("manylinux")) and (
-        b.startswith("linux") or b.startswith("manylinux")
-    ):
+    if a.startswith(("linux", "manylinux")) and b.startswith(("linux", "manylinux")):
         a_arch = a.split("_")[-1]
         b_arch = b.split("_")[-1]
         if a_arch == b_arch:

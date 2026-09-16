@@ -15,6 +15,17 @@
 - `portapkg info` now returns exit code `1` when the bundle or its manifest
   is missing (previously returned `0`/`None` on this error path).
 
+### Fixed
+
+- Pinned `ruff` to `0.16.7` in CI and dev dependencies (was previously
+  unpinned/floor-only, so `pip install ruff` would silently pick up newer
+  releases with different default rules and break CI without any code
+  change).
+- Resolved lint findings surfaced by the newer ruff release: explicit
+  `check=False` on `subprocess.run` calls, merged `str.startswith()` tuple
+  calls, timezone-aware `datetime.now()`, sorted imports/`__all__`, and
+  marked `portapkg.py`'s shebang executable.
+
 ## [0.3.0] — 2026-05-26
 
 ### Added

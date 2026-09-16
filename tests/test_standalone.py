@@ -119,14 +119,14 @@ class TestCmdInstall:
         mock_run = subprocess.CompletedProcess(
             args=[], returncode=0, stdout="pip 23.0", stderr=""
         )
-        with patch.object(subprocess, "run", return_value=mock_run):
-            with (
-                patch.object(standalone, "BUNDLES_DIR", "/nonexistent"),
-                pytest.raises(SystemExit),
-            ):
-                standalone.cmd_install(
-                    type("Args", (), {"packages": ["testpkg"], "all": False, "target": None})()
-                )
+        with (
+            patch.object(subprocess, "run", return_value=mock_run),
+            patch.object(standalone, "BUNDLES_DIR", "/nonexistent"),
+            pytest.raises(SystemExit),
+        ):
+            standalone.cmd_install(
+                type("Args", (), {"packages": ["testpkg"], "all": False, "target": None})()
+            )
         captured = capsys.readouterr()
         assert "not found" in captured.err
 
@@ -251,13 +251,15 @@ class TestCmdInstall:
         mock_success = subprocess.CompletedProcess(
             args=[], returncode=0, stdout="pip 23.0", stderr=""
         )
-        with patch.object(subprocess, "run", return_value=mock_success):
-            with tempfile.TemporaryDirectory() as tmpdir:
-                with patch.object(standalone, "BUNDLES_DIR", tmpdir):
-                    with pytest.raises(SystemExit):
-                        standalone.cmd_install(
-                            type("Args", (), {"packages": [], "all": True, "target": None})()
-                        )
+        with (
+            patch.object(subprocess, "run", return_value=mock_success),
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch.object(standalone, "BUNDLES_DIR", tmpdir),
+            pytest.raises(SystemExit),
+        ):
+            standalone.cmd_install(
+                type("Args", (), {"packages": [], "all": True, "target": None})()
+            )
         captured = capsys.readouterr()
         assert "specify package(s)" in captured.err
 

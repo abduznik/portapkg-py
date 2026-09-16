@@ -33,7 +33,7 @@ def _unfold_metadata(text):
     lines = text.splitlines()
     unfolded = []
     for line in lines:
-        if unfolded and (line.startswith(" ") or line.startswith("\t")):
+        if unfolded and line.startswith((" ", "\t")):
             unfolded[-1] += line
         else:
             unfolded.append(line)
@@ -116,7 +116,7 @@ def resolve_dependencies(package, platforms=None):
             tmpdir,
             package,
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if result.returncode != 0:
             raise RuntimeError(
                 f"Failed to resolve dependencies for {package}:\n{result.stderr}"
@@ -165,7 +165,7 @@ def _resolve_conditional_tree(package, all_deps, tmpdir, platforms):
                 "--no-deps",
                 name,
             ]
-            r = subprocess.run(cmd, capture_output=True, text=True)
+            r = subprocess.run(cmd, capture_output=True, text=True, check=False)
             if r.returncode == 0:
                 for fname in os.listdir(tmpdir):
                     n, v = _parse_package_version(fname)
@@ -179,6 +179,7 @@ def freeze_snapshot():
         [sys.executable, "-m", "pip", "freeze"],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(f"pip freeze failed:\n{result.stderr}")
@@ -186,7 +187,7 @@ def freeze_snapshot():
     packages = {}
     for line in result.stdout.strip().splitlines():
         line = line.strip()
-        if not line or line.startswith("#") or line.startswith("-e") or " @ " in line:
+        if not line or line.startswith(("#", "-e")) or " @ " in line:
             continue
         if "==" in line:
             name, version = line.split("==", 1)

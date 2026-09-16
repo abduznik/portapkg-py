@@ -56,7 +56,7 @@ def _pip_download(spec, dest_dir, plat=None, pyver_dotted=None, only_binary=None
     elif only_binary is False:
         cmd.extend(["--no-binary", ":all:"])
     cmd.append(spec)
-    return subprocess.run(cmd, capture_output=True, text=True)
+    return subprocess.run(cmd, capture_output=True, text=True, check=False)
 
 
 def _try_newer_version(package, cur_version, dest_dir, plat, pyver_dotted):
@@ -65,8 +65,8 @@ def _try_newer_version(package, cur_version, dest_dir, plat, pyver_dotted):
     Uses the PyPI JSON API (works with all pip versions).
     """
     try:
-        import urllib.request
         import json as _json
+        import urllib.request
 
         url = f"https://pypi.org/pypi/{package}/json"
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
@@ -178,7 +178,7 @@ def download_single_platform(package, version, dest_dir):
         "--no-deps",
         spec,
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         raise RuntimeError(f"Failed to download {spec}:\n{result.stderr}")
     return True

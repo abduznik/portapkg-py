@@ -1,10 +1,13 @@
 import subprocess
 from unittest.mock import patch
+
 from portapkg.bundler.resolver import (
     _parse_package_version,
     freeze_snapshot,
     resolve_dependencies,
 )
+
+
 class TestParsePackageVersion:
     def test_wheel_simple(self):
         name, version = _parse_package_version("instrumation-0.3.0-py3-none-any.whl")

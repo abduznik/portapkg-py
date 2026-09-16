@@ -62,7 +62,7 @@ class TestDownloadWheels:
             patch.object(subprocess, "run", side_effect=mock_run),
             tempfile.TemporaryDirectory() as tmpdir,
         ):
-            successes, failures = download_wheels(
+            successes, _failures = download_wheels(
                 "testpkg",
                 "1.0",
                 tmpdir,

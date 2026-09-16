@@ -1,10 +1,10 @@
+import argparse
 import json
 import os
 import re
-import argparse
 from unittest.mock import patch
 
-from portapkg.cli import cmd_list, cmd_info, cmd_update, cmd_export
+from portapkg.cli import cmd_export, cmd_info, cmd_list, cmd_update
 
 
 class TestCmdList:
@@ -23,7 +23,7 @@ class TestCmdList:
         assert "testpkg" in captured.out
 
     def test_list_with_bundles(self, capsys, manifest_with_wheels):
-        bundle_dir, manifest_data, wheel_files = manifest_with_wheels
+        bundle_dir, _manifest_data, _wheel_files = manifest_with_wheels
         bundles_parent = os.path.dirname(bundle_dir)
         with patch("portapkg.cli.BUNDLES_DIR", bundles_parent):
             cmd_list(argparse.Namespace(json=False))
@@ -32,7 +32,7 @@ class TestCmdList:
         assert "1.0.0" in captured.out
 
     def test_list_json(self, capsys, manifest_with_wheels):
-        bundle_dir, manifest_data, wheel_files = manifest_with_wheels
+        bundle_dir, _manifest_data, _wheel_files = manifest_with_wheels
         bundles_parent = os.path.dirname(bundle_dir)
         with patch("portapkg.cli.BUNDLES_DIR", bundles_parent):
             cmd_list(argparse.Namespace(json=True))
@@ -58,7 +58,7 @@ class TestCmdInfo:
         assert "error" in data
 
     def test_info_with_bundle(self, capsys, manifest_with_wheels):
-        bundle_dir, manifest_data, wheel_files = manifest_with_wheels
+        bundle_dir, _manifest_data, _wheel_files = manifest_with_wheels
         with patch("portapkg.cli._get_bundle_dir", return_value=bundle_dir):
             cmd_info(argparse.Namespace(package="testpkg", json=False))
         captured = capsys.readouterr()
@@ -67,7 +67,7 @@ class TestCmdInfo:
         assert "dep1" in captured.out
 
     def test_info_with_bundle_json(self, capsys, manifest_with_wheels):
-        bundle_dir, manifest_data, wheel_files = manifest_with_wheels
+        bundle_dir, _manifest_data, _wheel_files = manifest_with_wheels
         with patch("portapkg.cli._get_bundle_dir", return_value=bundle_dir):
             cmd_info(argparse.Namespace(package="testpkg", json=True))
         captured = capsys.readouterr()
