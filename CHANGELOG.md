@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.3] — 2026-09-16
+
+### Added
+
+- **`--json` flag** on `portapkg list` and `portapkg info`: machine-readable
+  output for scripting and AI coding agents.
+- **Inline `--help` examples**: every subcommand (and the top-level
+  `portapkg --help`) now includes copy-pasteable usage examples, so the CLI
+  is self-documenting without needing the README.
+
+### Changed
+
+- `portapkg info` now returns exit code `1` when the bundle or its manifest
+  is missing (previously returned `0`/`None` on this error path).
+
 ## [0.3.0] — 2026-05-26
 
 ### Added

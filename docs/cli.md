@@ -39,6 +39,9 @@ List all bundles in the bundles directory.
 
 ```bash
 portapkg list
+
+# Machine-readable output (for scripts / AI agents)
+portapkg list --json
 ```
 
 #### `portapkg info <package>`
@@ -47,6 +50,9 @@ Show details about a specific bundle.
 
 ```bash
 portapkg info instrumation
+
+# Machine-readable output (for scripts / AI agents)
+portapkg info instrumation --json
 ```
 
 #### `portapkg export [package]`

@@ -40,9 +40,11 @@ portapkg bundle instrumation --snapshot
 
 # List all bundles
 portapkg list
+portapkg list --json    # machine-readable, for scripts / AI agents
 
 # Show bundle details
 portapkg info instrumation
+portapkg info instrumation --json
 
 # Update / re-fetch a bundle
 portapkg update instrumation

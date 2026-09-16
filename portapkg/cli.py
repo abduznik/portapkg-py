@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import json
 import os
 import random
 import re
@@ -165,7 +166,10 @@ def _bundle_snapshot(package):
 
 def cmd_list(args):
     if not os.path.isdir(BUNDLES_DIR):
-        print("No bundles directory found.")
+        if args.json:
+            print(json.dumps([]))
+        else:
+            print("No bundles directory found.")
         return
 
     bundles = sorted(
@@ -175,7 +179,32 @@ def cmd_list(args):
     )
 
     if not bundles:
-        print("No bundles found.")
+        if args.json:
+            print(json.dumps([]))
+        else:
+            print("No bundles found.")
+        return
+
+    if args.json:
+        result = []
+        for name in bundles:
+            manifest = read_manifest(os.path.join(BUNDLES_DIR, name))
+            whl_dir = os.path.join(BUNDLES_DIR, name, WHEELS_SUBDIR)
+            wc = (
+                len([f for f in os.listdir(whl_dir) if f.endswith(".whl")])
+                if os.path.isdir(whl_dir)
+                else 0
+            )
+            result.append(
+                {
+                    "name": name,
+                    "version": manifest.get("version") if manifest else None,
+                    "date_bundled": manifest.get("date_bundled") if manifest else None,
+                    "wheel_count": wc,
+                    "has_manifest": manifest is not None,
+                }
+            )
+        print(json.dumps(result, indent=2))
         return
 
     print(f"Bundles ({len(bundles)}):\n")
@@ -199,13 +228,19 @@ def cmd_list(args):
 def cmd_info(args):
     bundle_dir = _get_bundle_dir(args.package)
     if not os.path.isdir(bundle_dir):
+        if args.json:
+            print(json.dumps({"error": f"Bundle '{args.package}' not found."}))
+            return 1
         print(f"Bundle '{args.package}' not found.")
-        return
+        return 1
 
     manifest = read_manifest(bundle_dir)
     if not manifest:
+        if args.json:
+            print(json.dumps({"error": f"No manifest in {bundle_dir}"}))
+            return 1
         print(f"No manifest in {bundle_dir}")
-        return
+        return 1
 
     whl_dir = os.path.join(bundle_dir, WHEELS_SUBDIR)
     wheel_files = (
@@ -213,6 +248,23 @@ def cmd_info(args):
         if os.path.isdir(whl_dir)
         else []
     )
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "name": manifest.get("name"),
+                    "version": manifest.get("version"),
+                    "date_bundled": manifest.get("date_bundled"),
+                    "source_platform": manifest.get("source_platform"),
+                    "source_python": manifest.get("source_python"),
+                    "dependencies": manifest.get("dependencies", []),
+                    "wheels": wheel_files,
+                },
+                indent=2,
+            )
+        )
+        return
 
     print(f"Package:  {manifest.get('name', '?')}")
     print(f"Version:  {manifest.get('version', '?')}")
@@ -353,6 +405,19 @@ def main():
     parser = argparse.ArgumentParser(
         prog="portapkg",
         description="Portable Python package bundler and installer",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+examples:
+  portapkg bundle requests                         bundle for all platforms/pythons
+  portapkg bundle requests --platforms win_amd64    bundle for one platform
+  portapkg bundle requests --snapshot               bundle exact current env (fastest, single-platform)
+  portapkg list --json                              machine-readable bundle list
+  portapkg info requests --json                     machine-readable bundle details
+  portapkg export requests -o ./out                 write portapkg.py + bundle to ./out for copying offline
+  python portapkg.py install requests               on the offline machine, install from ./bundles
+
+run `portapkg <command> --help` for command-specific options.
+""",
     )
     parser.add_argument(
         "--version", action="version", version=f"portapkg {__version__}"
@@ -360,7 +425,17 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_bundle = sub.add_parser(
-        "bundle", help="Bundle a package (or multiple) for offline install"
+        "bundle",
+        help="Bundle a package (or multiple) for offline install",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+examples:
+  portapkg bundle requests
+  portapkg bundle requests --platforms win_amd64,macosx_13_0_arm64
+  portapkg bundle requests --platforms win_amd64 --python-versions 313
+  portapkg bundle requests --snapshot
+  portapkg bundle --packages requests,flask,numpy
+""",
     )
     p_bundle.add_argument(
         "package", nargs="?", help="Package name (single-package shortcut)"
@@ -389,7 +464,15 @@ def main():
     p_bundle.set_defaults(func=cmd_bundle)
 
     p_export = sub.add_parser(
-        "export", help="Export bundle(s) + portapkg.py into a portable folder"
+        "export",
+        help="Export bundle(s) + portapkg.py into a portable folder",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+examples:
+  portapkg export requests
+  portapkg export requests -o ./usb_drive
+  portapkg export --packages requests,flask --name my_offline_kit
+""",
     )
     p_export.add_argument(
         "package", nargs="?", help="Package name (single-package shortcut)"
@@ -405,14 +488,39 @@ def main():
     )
     p_export.set_defaults(func=cmd_export)
 
-    p_list = sub.add_parser("list", help="List all bundles")
+    p_list = sub.add_parser(
+        "list",
+        help="List all bundles",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="examples:\n  portapkg list\n  portapkg list --json\n",
+    )
+    p_list.add_argument(
+        "--json", action="store_true", help="Output machine-readable JSON"
+    )
     p_list.set_defaults(func=cmd_list)
 
-    p_info = sub.add_parser("info", help="Show bundle details")
+    p_info = sub.add_parser(
+        "info",
+        help="Show bundle details",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="examples:\n  portapkg info requests\n  portapkg info requests --json\n",
+    )
     p_info.add_argument("package", help="Package name")
+    p_info.add_argument(
+        "--json", action="store_true", help="Output machine-readable JSON"
+    )
     p_info.set_defaults(func=cmd_info)
 
-    p_update = sub.add_parser("update", help="Re-fetch a bundle (or multiple)")
+    p_update = sub.add_parser(
+        "update",
+        help="Re-fetch a bundle (or multiple)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+examples:
+  portapkg update requests
+  portapkg update requests --snapshot
+""",
+    )
     p_update.add_argument(
         "package", nargs="?", help="Package name (single-package shortcut)"
     )

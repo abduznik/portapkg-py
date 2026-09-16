@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import argparse
@@ -9,7 +10,7 @@ from portapkg.cli import cmd_list, cmd_info, cmd_update, cmd_export
 class TestCmdList:
     def test_list_no_bundles_dir(self, capsys):
         with patch("portapkg.cli.BUNDLES_DIR", "/nonexistent/path"):
-            cmd_list(None)
+            cmd_list(argparse.Namespace(json=False))
         captured = capsys.readouterr()
         assert "No bundles" in captured.out, f"Expected 'No bundles' in stdout, got: {captured.out}"
 
@@ -17,7 +18,7 @@ class TestCmdList:
         bundle_dir = tmp_path / "testpkg"
         bundle_dir.mkdir()
         with patch("portapkg.cli.BUNDLES_DIR", str(tmp_path)):
-            cmd_list(None)
+            cmd_list(argparse.Namespace(json=False))
         captured = capsys.readouterr()
         assert "testpkg" in captured.out
 
@@ -25,27 +26,55 @@ class TestCmdList:
         bundle_dir, manifest_data, wheel_files = manifest_with_wheels
         bundles_parent = os.path.dirname(bundle_dir)
         with patch("portapkg.cli.BUNDLES_DIR", bundles_parent):
-            cmd_list(None)
+            cmd_list(argparse.Namespace(json=False))
         captured = capsys.readouterr()
         assert "testpkg" in captured.out
         assert "1.0.0" in captured.out
+
+    def test_list_json(self, capsys, manifest_with_wheels):
+        bundle_dir, manifest_data, wheel_files = manifest_with_wheels
+        bundles_parent = os.path.dirname(bundle_dir)
+        with patch("portapkg.cli.BUNDLES_DIR", bundles_parent):
+            cmd_list(argparse.Namespace(json=True))
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data[0]["name"] == "testpkg"
+        assert data[0]["version"] == "1.0.0"
 
 
 class TestCmdInfo:
     def test_info_no_bundle(self, capsys):
         with patch("portapkg.cli.BUNDLES_DIR", "/nonexistent"):
-            cmd_info(argparse.Namespace(package="nonexistent"))
+            cmd_info(argparse.Namespace(package="nonexistent", json=False))
         captured = capsys.readouterr()
         assert "not found" in captured.out
+
+    def test_info_no_bundle_json(self, capsys):
+        with patch("portapkg.cli.BUNDLES_DIR", "/nonexistent"):
+            ret = cmd_info(argparse.Namespace(package="nonexistent", json=True))
+        captured = capsys.readouterr()
+        assert ret == 1
+        data = json.loads(captured.out)
+        assert "error" in data
 
     def test_info_with_bundle(self, capsys, manifest_with_wheels):
         bundle_dir, manifest_data, wheel_files = manifest_with_wheels
         with patch("portapkg.cli._get_bundle_dir", return_value=bundle_dir):
-            cmd_info(argparse.Namespace(package="testpkg"))
+            cmd_info(argparse.Namespace(package="testpkg", json=False))
         captured = capsys.readouterr()
         assert "testpkg" in captured.out
         assert "1.0.0" in captured.out
         assert "dep1" in captured.out
+
+    def test_info_with_bundle_json(self, capsys, manifest_with_wheels):
+        bundle_dir, manifest_data, wheel_files = manifest_with_wheels
+        with patch("portapkg.cli._get_bundle_dir", return_value=bundle_dir):
+            cmd_info(argparse.Namespace(package="testpkg", json=True))
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data["name"] == "testpkg"
+        assert data["version"] == "1.0.0"
+        assert any(d["name"] == "dep1" for d in data["dependencies"])
 
 
 class TestCmdUpdate:
