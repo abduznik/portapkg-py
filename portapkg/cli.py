@@ -19,6 +19,9 @@ from portapkg.installer.platform import (
     _normalize_pkg,
     detect_current_platform,
     detect_current_python,
+    parse_wheel_filename,
+    platform_tag_matches,
+    python_tag_matches,
 )
 
 BUNDLES_DIR = os.path.abspath(
@@ -138,9 +141,6 @@ def _bundle_snapshot(package):
     for dep_name in deps:
         dep_version = frozen.get(dep_name)
         if not dep_version:
-            print(
-                f"  WARNING: {dep_name} not in freeze, using resolved version {deps[dep_name]}"
-            )
             dep_version = deps[dep_name]
 
         print(f"  Downloading {dep_name}=={dep_version}...")
@@ -280,6 +280,108 @@ def cmd_info(args):
         print(f"  {wf}")
 
 
+def _grouped_wheels(whl_dir):
+    """Map normalized package name -> list of parsed wheel infos in whl_dir."""
+    grouped = {}
+    if not os.path.isdir(whl_dir):
+        return grouped
+    for fname in os.listdir(whl_dir):
+        parsed = parse_wheel_filename(fname)
+        if parsed is None:
+            continue
+        key = _normalize_pkg(parsed["name"])
+        grouped.setdefault(key, []).append(parsed)
+    return grouped
+
+
+def cmd_verify(args):
+    bundle_dir = _get_bundle_dir(args.package)
+    if not os.path.isdir(bundle_dir):
+        msg = f"Bundle '{args.package}' not found."
+        if args.json:
+            print(json.dumps({"error": msg}))
+        else:
+            print(f"ERROR: {msg}", file=sys.stderr)
+        return 1
+
+    manifest = read_manifest(bundle_dir)
+    if not manifest:
+        msg = f"No manifest in {bundle_dir}"
+        if args.json:
+            print(json.dumps({"error": msg}))
+        else:
+            print(f"ERROR: {msg}", file=sys.stderr)
+        return 1
+
+    platforms = (
+        [p.strip() for p in args.platforms.split(",") if p.strip()]
+        if args.platforms
+        else [manifest.get("source_platform") or detect_current_platform()]
+    )
+    python_versions = (
+        [p.strip() for p in args.python_versions.split(",") if p.strip()]
+        if args.python_versions
+        else [manifest.get("source_python") or detect_current_python()]
+    )
+
+    whl_dir = os.path.join(bundle_dir, WHEELS_SUBDIR)
+    grouped = _grouped_wheels(whl_dir)
+    deps = manifest.get("dependencies", [])
+
+    results = []
+    all_ok = True
+    for dep in deps:
+        dep_key = _normalize_pkg(dep["name"])
+        candidates = grouped.get(dep_key, [])
+        missing = []
+        for plat in platforms:
+            for pyver in python_versions:
+                covered = any(
+                    python_tag_matches(w["python_tag"], pyver)
+                    and platform_tag_matches(w["platform_tag"], plat)
+                    for w in candidates
+                )
+                if not covered:
+                    missing.append({"platform": plat, "python": pyver})
+        if missing:
+            all_ok = False
+        results.append({"name": dep["name"], "version": dep["version"], "missing": missing})
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "package": manifest.get("name"),
+                    "platforms": platforms,
+                    "python_versions": python_versions,
+                    "ok": all_ok,
+                    "dependencies": results,
+                },
+                indent=2,
+            )
+        )
+        return 0 if all_ok else 1
+
+    print(f"Verifying {manifest.get('name')} for:")
+    print(f"  Platforms: {', '.join(platforms)}")
+    print(f"  Python:    {', '.join(python_versions)}")
+    print()
+    for r in results:
+        if not r["missing"]:
+            print(f"  OK    {r['name']}=={r['version']}")
+        else:
+            print(f"  MISSING {r['name']}=={r['version']}")
+            for m in r["missing"]:
+                print(f"           no wheel for {m['platform']} / py{m['python']}")
+
+    print()
+    if all_ok:
+        print("All dependencies covered.")
+    else:
+        print("Some dependencies are missing coverage — see above.", file=sys.stderr)
+    return 0 if all_ok else 1
+
+
 def _find_standalone():
     """Locate portapkg.py for export."""
     locations = [
@@ -356,7 +458,7 @@ def cmd_export(args):
         shutil.copytree(bundle_src, pkg_out)
 
     print(f"Exported to: {output_dir}")
-    print(f"  Size: {_dir_size(output_dir):.1f} MB")
+    print(f"  Size: {_format_size(_dir_size(output_dir))}")
     print("  Contents:")
     print(f"    {output_dir}/portapkg.py")
     print(f"    {output_dir}/bundles/")
@@ -372,7 +474,14 @@ def _dir_size(path):
             fp = os.path.join(dirpath, f)
             if os.path.isfile(fp):
                 total += os.path.getsize(fp)
-    return total / (1024 * 1024)
+    return total
+
+
+def _format_size(num_bytes):
+    for unit in ("B", "KB", "MB", "GB"):
+        if num_bytes < 1024 or unit == "GB":
+            return f"{num_bytes:.1f} {unit}" if unit != "B" else f"{num_bytes} B"
+        num_bytes /= 1024
 
 
 def cmd_update(args):
@@ -413,6 +522,7 @@ examples:
   portapkg bundle requests --snapshot               bundle exact current env (fastest, single-platform)
   portapkg list --json                              machine-readable bundle list
   portapkg info requests --json                     machine-readable bundle details
+  portapkg verify requests --platforms win_amd64    check wheel coverage before shipping
   portapkg export requests -o ./out                 write portapkg.py + bundle to ./out for copying offline
   python portapkg.py install requests               on the offline machine, install from ./bundles
 
@@ -510,6 +620,40 @@ examples:
         "--json", action="store_true", help="Output machine-readable JSON"
     )
     p_info.set_defaults(func=cmd_info)
+
+    p_verify = sub.add_parser(
+        "verify",
+        help="Check a bundle has wheels for target platform(s)/Python version(s)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+examples:
+  portapkg verify requests
+  portapkg verify requests --platforms win_amd64,manylinux2014_x86_64
+  portapkg verify requests --python-versions 311,312,313
+  portapkg verify requests --json
+
+exits 0 if all dependencies have a compatible wheel for every requested
+platform/Python combo, 1 otherwise. Defaults to the bundle's own source
+platform/Python if --platforms/--python-versions are omitted.
+""",
+    )
+    p_verify.add_argument("package", help="Package name")
+    p_verify.add_argument(
+        "--platforms",
+        help=(
+            "Comma-separated platform tags to check. "
+            f"Valid: {', '.join(DEFAULT_PLATFORMS)}. "
+            "Default: bundle's source platform."
+        ),
+    )
+    p_verify.add_argument(
+        "--python-versions",
+        help="Comma-separated Python versions to check (e.g. 312,313). Default: bundle's source Python.",
+    )
+    p_verify.add_argument(
+        "--json", action="store_true", help="Output machine-readable JSON"
+    )
+    p_verify.set_defaults(func=cmd_verify)
 
     p_update = sub.add_parser(
         "update",

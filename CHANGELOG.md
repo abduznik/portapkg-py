@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.4.0] — 2026-09-16
+
+### Added
+
+- **`portapkg verify <package>`**: checks that every dependency in a bundle
+  has a compatible wheel for one or more target platform/Python combos,
+  without installing anything. Catches "no compatible wheel" gaps before
+  shipping the bundle to an offline machine. Supports `--platforms`,
+  `--python-versions`, and `--json`; defaults to the bundle's own recorded
+  source platform/Python. Exits `1` if any dependency is missing coverage.
+
+### Fixed
+
+- `portapkg export`'s size report no longer shows a misleading "0.0 MB"
+  for small bundles — now auto-scales across B/KB/MB/GB.
+- `portapkg bundle --snapshot` no longer prints a spurious
+  "not in freeze" warning for packages that simply aren't installed in the
+  current environment yet — that's the expected case, not an error.
+
 ## [0.3.3] — 2026-09-16
 
 ### Added

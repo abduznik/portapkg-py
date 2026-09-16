@@ -4,7 +4,7 @@ import os
 import re
 from unittest.mock import patch
 
-from portapkg.cli import cmd_export, cmd_info, cmd_list, cmd_update
+from portapkg.cli import cmd_export, cmd_info, cmd_list, cmd_update, cmd_verify
 
 
 class TestCmdList:
@@ -75,6 +75,71 @@ class TestCmdInfo:
         assert data["name"] == "testpkg"
         assert data["version"] == "1.0.0"
         assert any(d["name"] == "dep1" for d in data["dependencies"])
+
+
+class TestCmdVerify:
+    def _make_args(self, package="testpkg", platforms=None, python_versions=None, json=False):
+        return argparse.Namespace(
+            package=package, platforms=platforms, python_versions=python_versions, json=json
+        )
+
+    def test_verify_no_bundle(self, capsys):
+        with patch("portapkg.cli.BUNDLES_DIR", "/nonexistent"):
+            ret = cmd_verify(self._make_args(package="nonexistent"))
+        captured = capsys.readouterr()
+        assert ret == 1
+        assert "not found" in captured.err
+
+    def test_verify_all_covered(self, capsys, manifest_with_wheels):
+        bundle_dir, _manifest_data, _wheel_files = manifest_with_wheels
+        with patch("portapkg.cli._get_bundle_dir", return_value=bundle_dir):
+            ret = cmd_verify(
+                self._make_args(platforms="win_amd64", python_versions="312")
+            )
+        captured = capsys.readouterr()
+        assert ret == 0
+        assert "OK    testpkg==1.0.0" in captured.out
+        assert "OK    dep1==2.0.0" in captured.out
+        assert "All dependencies covered." in captured.out
+
+    def test_verify_missing_coverage(self, capsys, manifest_with_wheels):
+        bundle_dir, manifest_data, _wheel_files = manifest_with_wheels
+        # dep1 is pure-python (any platform), so add a platform-specific
+        # dependency in the manifest that has no matching wheel bundled.
+        manifest_data["dependencies"].append({"name": "missingpkg", "version": "9.0.0"})
+        with open(os.path.join(bundle_dir, "manifest.json"), "w") as f:
+            json.dump(manifest_data, f)
+        with patch("portapkg.cli._get_bundle_dir", return_value=bundle_dir):
+            ret = cmd_verify(
+                self._make_args(platforms="win_amd64", python_versions="312")
+            )
+        captured = capsys.readouterr()
+        assert ret == 1
+        assert "MISSING missingpkg==9.0.0" in captured.out
+        assert "no wheel for win_amd64 / py312" in captured.out
+
+    def test_verify_json(self, capsys, manifest_with_wheels):
+        bundle_dir, _manifest_data, _wheel_files = manifest_with_wheels
+        with patch("portapkg.cli._get_bundle_dir", return_value=bundle_dir):
+            ret = cmd_verify(
+                self._make_args(platforms="win_amd64", python_versions="312", json=True)
+            )
+        captured = capsys.readouterr()
+        assert ret == 0
+        data = json.loads(captured.out)
+        assert data["ok"] is True
+        assert data["platforms"] == ["win_amd64"]
+        assert all(dep["missing"] == [] for dep in data["dependencies"])
+
+    def test_verify_defaults_to_source_platform(self, capsys, manifest_with_wheels):
+        bundle_dir, manifest_data, _wheel_files = manifest_with_wheels
+        with patch("portapkg.cli._get_bundle_dir", return_value=bundle_dir):
+            ret = cmd_verify(self._make_args(json=True))
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data["platforms"] == [manifest_data["source_platform"]]
+        assert data["python_versions"] == [manifest_data["source_python"]]
+        assert ret == 0
 
 
 class TestCmdUpdate:

@@ -48,6 +48,9 @@ portapkg info instrumation --json
 
 # Update / re-fetch a bundle
 portapkg update instrumation
+
+# Verify a bundle covers a target platform/Python before shipping it
+portapkg verify instrumation --platforms win_amd64 --python-versions 313
 ```
 
 Output bundle structure:

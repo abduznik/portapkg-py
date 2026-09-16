@@ -55,6 +55,36 @@ portapkg info instrumation
 portapkg info instrumation --json
 ```
 
+#### `portapkg verify <package>`
+
+Check that a bundle has a compatible wheel for every dependency, for one or
+more target platform/Python combos — without installing anything. Useful
+for catching "no compatible wheel" failures before shipping the USB drive.
+
+```bash
+# Check against the bundle's own source platform/Python (default)
+portapkg verify instrumation
+
+# Check specific platforms/Python versions
+portapkg verify instrumation --platforms win_amd64,manylinux2014_x86_64
+portapkg verify instrumation --python-versions 311,312,313
+
+# Machine-readable output
+portapkg verify instrumation --json
+```
+
+Exits `0` if every dependency has a compatible wheel for every requested
+platform/Python combo, `1` otherwise (with a `MISSING` line per gap).
+
+**Options:**
+
+| Flag | Description |
+|---|---|
+| `package` | Package name (required) |
+| `--platforms` | Comma-separated platform tags to check (default: bundle's source platform) |
+| `--python-versions` | Comma-separated Python versions to check (default: bundle's source Python) |
+| `--json` | Output machine-readable JSON |
+
 #### `portapkg export [package]`
 
 Export one or more bundles + standalone installer into a portable folder.
